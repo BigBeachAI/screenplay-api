@@ -6,6 +6,13 @@
     <title>Screenplay Reader - ElevenLabs</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        /* Improve touch targets and prevent unwanted selections */
+        button, .file-label, .screenplay-line {
+            -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+            touch-action: manipulation;
+        }
+        
         body { 
             font-family: 'Courier', 'Courier New', monospace; 
             background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
@@ -13,6 +20,8 @@
             color: #fff; 
             font-size: 12pt; 
             min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         .header { 
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -251,6 +260,180 @@
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
             border-color: transparent;
             color: white; 
+        }
+        
+        /* Mobile Responsive Styles */
+        @media screen and (max-width: 768px) {
+            body {
+                font-size: 10pt;
+            }
+            
+            .header {
+                padding: 15px 10px;
+            }
+            
+            h1 {
+                font-size: 1.5em;
+                margin-bottom: 15px;
+            }
+            
+            .controls {
+                gap: 8px;
+                padding: 8px;
+            }
+            
+            .file-label, button {
+                padding: 10px 20px;
+                font-size: 0.9em;
+            }
+            
+            .controls > div {
+                flex: 1 1 auto;
+                min-width: 140px;
+            }
+            
+            .controls label {
+                font-size: 0.85em !important;
+            }
+            
+            .controls input[type="number"] {
+                width: 50px !important;
+                padding: 6px !important;
+                font-size: 0.9em !important;
+            }
+            
+            .controls input[type="range"] {
+                width: 80px !important;
+            }
+            
+            .controls span {
+                width: 35px !important;
+                font-size: 0.85em !important;
+            }
+            
+            .screenplay-page {
+                width: 100%;
+                margin: 20px 0;
+                border-radius: 0;
+                box-shadow: none;
+            }
+            
+            .pdf-page {
+                min-height: auto;
+                padding: 0.5in 0.25in;
+            }
+            
+            .page-number {
+                top: 0.25in;
+                right: 0.25in;
+                font-size: 9pt;
+            }
+            
+            .screenplay-line {
+                font-size: 11pt;
+            }
+            
+            .upload-area {
+                padding: 60px 15px;
+                margin: 20px 10px;
+            }
+            
+            .upload-area h2 {
+                font-size: 1.5em;
+            }
+            
+            .upload-area p {
+                font-size: 0.95em;
+            }
+            
+            .status {
+                bottom: 10px;
+                right: 10px;
+                padding: 10px 15px;
+                font-size: 0.85em;
+                border-radius: 10px;
+            }
+            
+            .voice-panel {
+                padding: 15px;
+                max-height: 200px;
+                margin-top: 10px;
+            }
+            
+            .voice-panel h3 {
+                font-size: 0.95em;
+                padding: 8px;
+                margin: -15px -15px 10px -15px;
+            }
+            
+            .voice-item {
+                grid-template-columns: 90px 1fr;
+                gap: 8px;
+                margin-bottom: 10px;
+                font-size: 0.85em;
+            }
+            
+            .voice-item label {
+                font-size: 0.85em;
+            }
+            
+            .voice-item select {
+                padding: 6px 8px;
+                font-size: 0.85em;
+            }
+            
+            .voice-toggle-btn {
+                padding: 8px 16px;
+                font-size: 0.9em;
+            }
+        }
+        
+        /* Very small mobile devices */
+        @media screen and (max-width: 480px) {
+            h1 {
+                font-size: 1.2em;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .controls > div {
+                width: 100%;
+                justify-content: space-between;
+            }
+            
+            .file-label, button {
+                width: 100%;
+                text-align: center;
+            }
+            
+            .pdf-page {
+                padding: 0.25in 0.15in;
+            }
+            
+            .voice-item {
+                grid-template-columns: 1fr;
+                gap: 5px;
+            }
+            
+            .voice-item label {
+                margin-bottom: 3px;
+            }
+        }
+        
+        /* Desktop optimizations */
+        @media screen and (min-width: 1200px) {
+            .screenplay-page {
+                width: 8.5in;
+                max-width: none;
+            }
+            
+            .controls {
+                max-width: 1400px;
+                margin: 0 auto;
+            }
         }
     </style>
 </head>
