@@ -33,6 +33,10 @@
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
             backdrop-filter: blur(10px);
         }
+        
+        .header > * {
+            position: relative;
+        }
         h1 { 
             color: #ffffff; 
             font-size: 2.2em; 
@@ -274,28 +278,35 @@
         }
         
         .header-toggle {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border: 3px solid white;
             color: white;
-            padding: 8px 12px;
-            border-radius: 8px;
+            padding: 12px 18px;
+            border-radius: 50%;
             cursor: pointer;
-            font-size: 1.2em;
-            z-index: 101;
+            font-size: 1.6em;
+            font-weight: bold;
+            z-index: 9999;
             transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            line-height: 1;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
         .header-toggle:hover {
-            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.15);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
         }
         
         .header.collapsed .header-toggle {
-            position: fixed;
-            top: 10px;
-            right: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
     </style>
 </head>
