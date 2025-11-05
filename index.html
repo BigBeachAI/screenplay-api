@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=1100, user-scalable=yes, minimum-scale=0.1, maximum-scale=5.0">
     <title>Screenplay Reader - ElevenLabs</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -262,185 +262,46 @@
             color: white; 
         }
         
-        /* Mobile Responsive Styles */
-        @media screen and (max-width: 768px) {
-            body {
-                font-size: 10pt;
-            }
-            
-            .header {
-                padding: 15px 10px;
-            }
-            
-            h1 {
-                font-size: 1.5em;
-                margin-bottom: 15px;
-            }
-            
-            .controls {
-                gap: 8px;
-                padding: 8px;
-            }
-            
-            .file-label, button {
-                padding: 10px 20px;
-                font-size: 0.9em;
-            }
-            
-            .controls > div {
-                flex: 1 1 auto;
-                min-width: 140px;
-            }
-            
-            .controls label {
-                font-size: 0.85em !important;
-            }
-            
-            .controls input[type="number"] {
-                width: 50px !important;
-                padding: 6px !important;
-                font-size: 0.9em !important;
-            }
-            
-            .controls input[type="range"] {
-                width: 80px !important;
-            }
-            
-            .controls span {
-                width: 35px !important;
-                font-size: 0.85em !important;
-            }
-            
-            .screenplay-page {
-                width: 100%;
-                margin: 20px 0;
-                border-radius: 0;
-                box-shadow: none;
-            }
-            
-            .pdf-page {
-                min-height: auto;
-                padding: 0.5in 0.25in;
-            }
-            
-            .page-number {
-                top: 0.25in;
-                right: 0.25in;
-                font-size: 9pt;
-            }
-            
-            .screenplay-line {
-                font-size: 11pt;
-            }
-            
-            .upload-area {
-                padding: 60px 15px;
-                margin: 20px 10px;
-            }
-            
-            .upload-area h2 {
-                font-size: 1.5em;
-            }
-            
-            .upload-area p {
-                font-size: 0.95em;
-            }
-            
-            .status {
-                bottom: 10px;
-                right: 10px;
-                left: 10px;
-                padding: 10px 15px;
-                font-size: 0.85em;
-                border-radius: 10px;
-                text-align: center;
-            }
-            
-            .voice-panel {
-                padding: 15px;
-                max-height: 200px;
-                margin-top: 10px;
-            }
-            
-            .voice-panel h3 {
-                font-size: 0.95em;
-                padding: 8px;
-                margin: -15px -15px 10px -15px;
-            }
-            
-            .voice-item {
-                grid-template-columns: 90px 1fr;
-                gap: 8px;
-                margin-bottom: 10px;
-                font-size: 0.85em;
-            }
-            
-            .voice-item label {
-                font-size: 0.85em;
-            }
-            
-            .voice-item select {
-                padding: 6px 8px;
-                font-size: 0.85em;
-            }
-            
-            .voice-toggle-btn {
-                padding: 8px 16px;
-                font-size: 0.9em;
-            }
+        /* Header collapse functionality */
+        .header.collapsed .controls,
+        .header.collapsed h1 {
+            display: none;
         }
         
-        /* Very small mobile devices */
-        @media screen and (max-width: 480px) {
-            h1 {
-                font-size: 1.2em;
-            }
-            
-            .controls {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .controls > div {
-                width: 100%;
-                justify-content: space-between;
-            }
-            
-            .file-label, button {
-                width: 100%;
-                text-align: center;
-            }
-            
-            .pdf-page {
-                padding: 0.25in 0.15in;
-            }
-            
-            .voice-item {
-                grid-template-columns: 1fr;
-                gap: 5px;
-            }
-            
-            .voice-item label {
-                margin-bottom: 3px;
-            }
+        .header.collapsed {
+            padding: 5px;
+            min-height: auto;
         }
         
-        /* Desktop optimizations */
-        @media screen and (min-width: 1200px) {
-            .screenplay-page {
-                width: 8.5in;
-                max-width: none;
-            }
-            
-            .controls {
-                max-width: 1400px;
-                margin: 0 auto;
-            }
+        .header-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.2em;
+            z-index: 101;
+            transition: all 0.3s ease;
+        }
+        
+        .header-toggle:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .header.collapsed .header-toggle {
+            position: fixed;
+            top: 10px;
+            right: 10px;
         }
     </style>
 </head>
 <body>
-    <div class="header">
+    <div class="header" id="header">
+        <button class="header-toggle" id="headerToggle" title="Hide/Show Controls">▼</button>
         <h1>🎬 Screenplay Reader - ElevenLabs Edition</h1>
         
         <div class="controls">
@@ -529,6 +390,14 @@
         const pageJump = document.getElementById('pageJump');
         const jumpBtn = document.getElementById('jumpBtn');
         const voiceToggleBtn = document.getElementById('voiceToggleBtn');
+        const header = document.getElementById('header');
+        const headerToggle = document.getElementById('headerToggle');
+
+        // Header collapse toggle
+        headerToggle.addEventListener('click', () => {
+            header.classList.toggle('collapsed');
+            headerToggle.textContent = header.classList.contains('collapsed') ? '▲' : '▼';
+        });
 
         speedControl.addEventListener('input', (e) => {
             playbackSpeed = parseFloat(e.target.value);
