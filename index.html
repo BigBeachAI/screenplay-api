@@ -744,13 +744,18 @@
         }
 
         function readNext() {
+            console.log(`readNext called - isPlaying: ${isPlaying}, isPaused: ${isPaused}, currentIndex: ${currentIndex}/${elements.length}`);
             if (!isPlaying || currentIndex >= elements.length || isPaused) {
-                if (currentIndex >= elements.length) stopReading();
+                if (currentIndex >= elements.length) {
+                    console.log('Reached end of script, stopping');
+                    stopReading();
+                }
                 return;
             }
 
             const element = elements[currentIndex];
             currentIndex++;
+            console.log(`Processing element ${currentIndex}: type=${element.isDialogue ? 'dialogue' : element.isSceneHeading ? 'heading' : 'action'}`);
 
             document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
             element.element.classList.add('highlight');
@@ -758,6 +763,7 @@
             status.textContent = 'Reading: ' + currentIndex + '/' + elements.length;
 
             if (element.isCharacter) {
+                console.log('Skipping character name, moving to next');
                 readNext();
                 return;
             }
@@ -953,6 +959,7 @@
                 currentAudio.volume = volumeLevel * characterVolume;
 
                 currentAudio.onended = () => {
+                    console.log(`Audio ended for session ${thisSessionId}`);
                     URL.revokeObjectURL(audioUrl);
                     currentAudio = null;
                     if (!isJumping && isPlaying && !isPaused) {
@@ -966,10 +973,13 @@
                                 readNext();
                             }
                         }
+                    } else {
+                        console.log(`Not continuing: isJumping=${isJumping}, isPlaying=${isPlaying}, isPaused=${isPaused}`);
                     }
                 };
 
-                currentAudio.onerror = () => {
+                currentAudio.onerror = (e) => {
+                    console.error(`Audio error for session ${thisSessionId}:`, e);
                     URL.revokeObjectURL(audioUrl);
                     currentAudio = null;
                     if (!isJumping && isPlaying && !isPaused) {
@@ -987,7 +997,22 @@
                 };
 
                 if (!isPaused && isPlaying) {
-                    currentAudio.play();
+                    // Mobile browsers require proper promise handling for audio.play()
+                    const playPromise = currentAudio.play();
+                    if (playPromise !== undefined) {
+                        playPromise.catch(error => {
+                            console.error('Play failed:', error);
+                            status.textContent = 'Playback error - tap to retry';
+                            // Try to continue to next line even if this one failed
+                            if (!isJumping && isPlaying && !isPaused) {
+                                if (onComplete) {
+                                    onComplete();
+                                } else {
+                                    readNext();
+                                }
+                            }
+                        });
+                    }
                 }
             } catch (error) {
                 console.error('Error:', error);
