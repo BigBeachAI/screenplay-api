@@ -889,6 +889,11 @@
 
         async function speakText(text, voiceIndex, characterVolume, onComplete, pauseAfterSpeaking = 0) {
             if (!text || text.trim() === '') {
+                // Reset flag since we're not actually loading audio
+                if (!onComplete) {
+                    isCurrentlyLoadingOrPlaying = false;
+                }
+                
                 if (onComplete) {
                     onComplete();
                 } else {
@@ -904,9 +909,9 @@
             // CRITICAL: Prevent racing through lines - wait if audio is currently loading/playing
             // Exception: allow multi-part lines (those with onComplete) to proceed
             if (!onComplete && isCurrentlyLoadingOrPlaying) {
-                console.log('Already loading/playing audio, waiting...');
-                // Wait a bit and try again
-                setTimeout(() => speakText(text, voiceIndex, characterVolume, onComplete, pauseAfterSpeaking), 100);
+                console.log('Already loading/playing audio, SKIPPING this call - audio onended will handle continuation');
+                // Don't retry, don't continue - just return and let the current audio finish
+                // When it finishes, onended will call readNext() which will process the next line
                 return;
             }
 
