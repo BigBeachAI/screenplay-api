@@ -611,6 +611,7 @@
                                         currentAudio = null;
                                     }
                                     audioQueue = [];
+                                    isCurrentlyLoadingOrPlaying = false; // Reset the loading flag
                                     
                                     const foundIndex = elements.findIndex(el => el.id === capturedId);
                                     currentIndex = foundIndex >= 0 ? foundIndex : 0;
