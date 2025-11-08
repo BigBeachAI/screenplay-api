@@ -981,8 +981,8 @@
                     console.log(`Audio ended for session ${thisSessionId}`);
                     URL.revokeObjectURL(audioUrl);
                     currentAudio = null;
-                    isCurrentlyLoadingOrPlaying = false; // Allow next line to load
                     if (!isJumping && isPlaying && !isPaused) {
+                        isCurrentlyLoadingOrPlaying = false; // Reset BEFORE continuing
                         if (onComplete) {
                             onComplete();
                         } else {
@@ -994,6 +994,7 @@
                             }
                         }
                     } else {
+                        isCurrentlyLoadingOrPlaying = false; // Reset even if not continuing
                         console.log(`Not continuing: isJumping=${isJumping}, isPlaying=${isPlaying}, isPaused=${isPaused}`);
                     }
                 };
@@ -1002,8 +1003,8 @@
                     console.error(`Audio error for session ${thisSessionId}:`, e);
                     URL.revokeObjectURL(audioUrl);
                     currentAudio = null;
-                    isCurrentlyLoadingOrPlaying = false; // Allow next line to load
                     if (!isJumping && isPlaying && !isPaused) {
+                        isCurrentlyLoadingOrPlaying = false; // Reset BEFORE continuing
                         if (onComplete) {
                             onComplete();
                         } else {
@@ -1014,6 +1015,8 @@
                                 readNext();
                             }
                         }
+                    } else {
+                        isCurrentlyLoadingOrPlaying = false; // Reset even if not continuing
                     }
                 };
 
