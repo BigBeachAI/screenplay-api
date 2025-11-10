@@ -384,6 +384,22 @@
         let isCurrentlyLoadingOrPlaying = false; // Prevent multiple simultaneous audio loads
         let abortController = null; // NEW: To cancel pending requests
         let currentAudioSessionId = 0; // NEW: Track which audio session is active
+        
+        // Mobile audio fix: Create and unlock AudioContext on first user interaction
+        let audioContext = null;
+        let audioContextUnlocked = false;
+        
+        function unlockAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (!audioContextUnlocked && audioContext.state === 'suspended') {
+                audioContext.resume().then(() => {
+                    audioContextUnlocked = true;
+                    console.log('🔓 AudioContext unlocked for mobile playback');
+                });
+            }
+        }
 
         const fileInput = document.getElementById('fileInput');
         const screenplayContent = document.getElementById('screenplayContent');
@@ -689,6 +705,9 @@
         }
 
         playPauseBtn.addEventListener('click', () => {
+            // Unlock audio on mobile
+            unlockAudioContext();
+            
             if (isPaused) {
                 // Resume
                 isPaused = false;
@@ -1061,6 +1080,12 @@
 
                 if (!isPaused && isPlaying) {
                     console.log(`Attempting to play audio for session ${thisSessionId}`);
+                    
+                    // Mobile fix: Resume AudioContext before playing to maintain permissions
+                    if (audioContext && audioContext.state === 'suspended') {
+                        audioContext.resume();
+                    }
+                    
                     // Mobile browsers require proper promise handling for audio.play()
                     const playPromise = currentAudio.play();
                     if (playPromise !== undefined) {
