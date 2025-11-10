@@ -1067,17 +1067,18 @@
                         playPromise.then(() => {
                             console.log(`Audio started playing successfully for session ${thisSessionId}`);
                         }).catch(error => {
-                            console.error('Play failed:', error);
-                            status.textContent = 'Playback error - tap Play again';
-                            isCurrentlyLoadingOrPlaying = false; // Allow next line to load
-                            // Try to continue to next line even if this one failed
-                            if (!isJumping && isPlaying && !isPaused) {
-                                if (onComplete) {
-                                    onComplete();
-                                } else {
-                                    readNext();
-                                }
-                            }
+                            console.error('❌ Play failed:', error);
+                            status.textContent = '❌ Playback blocked - tap Play/Pause to resume';
+                            isCurrentlyLoadingOrPlaying = false; // Allow retry
+                            
+                            // MOBILE FIX: Don't continue racing through if play is blocked
+                            // Just stop and wait for user interaction
+                            isPlaying = false;
+                            isPaused = true;
+                            playPauseBtn.textContent = '▶️ Resume';
+                            playPauseBtn.disabled = false;
+                            
+                            console.log('Playback stopped due to browser autoplay policy. User must click Play to continue.');
                         });
                     }
                 } else {
