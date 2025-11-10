@@ -381,7 +381,7 @@
         let volumeLevel = 1.0;
         let currentAudio = null;
         let audioQueue = [];
-        let isLoadingAudio = false;
+        let isCurrentlyLoadingOrPlaying = false; // Prevent multiple simultaneous audio loads
         let abortController = null; // NEW: To cancel pending requests
         let currentAudioSessionId = 0; // NEW: Track which audio session is active
 
@@ -611,6 +611,7 @@
                                         currentAudio = null;
                                     }
                                     audioQueue = [];
+                                    isCurrentlyLoadingOrPlaying = false; // Reset the loading flag
                                     
                                     const foundIndex = elements.findIndex(el => el.id === capturedId);
                                     currentIndex = foundIndex >= 0 ? foundIndex : 0;
@@ -725,6 +726,7 @@
                 currentAudio = null;
             }
             audioQueue = [];
+            isCurrentlyLoadingOrPlaying = false; // Reset loading flag
             
             if (selectedStartIndex !== null) {
                 const foundIndex = elements.findIndex(el => el.id === selectedStartIndex);
@@ -744,13 +746,18 @@
         }
 
         function readNext() {
+            console.log(`readNext called - isPlaying: ${isPlaying}, isPaused: ${isPaused}, currentIndex: ${currentIndex}/${elements.length}`);
             if (!isPlaying || currentIndex >= elements.length || isPaused) {
-                if (currentIndex >= elements.length) stopReading();
+                if (currentIndex >= elements.length) {
+                    console.log('Reached end of script, stopping');
+                    stopReading();
+                }
                 return;
             }
 
             const element = elements[currentIndex];
             currentIndex++;
+            console.log(`Processing element ${currentIndex}: type=${element.isDialogue ? 'dialogue' : element.isSceneHeading ? 'heading' : 'action'}`);
 
             document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
             element.element.classList.add('highlight');
@@ -758,6 +765,7 @@
             status.textContent = 'Reading: ' + currentIndex + '/' + elements.length;
 
             if (element.isCharacter) {
+                console.log('Skipping character name, moving to next');
                 readNext();
                 return;
             }
@@ -882,6 +890,11 @@
 
         async function speakText(text, voiceIndex, characterVolume, onComplete, pauseAfterSpeaking = 0) {
             if (!text || text.trim() === '') {
+                // Reset flag since we're not actually loading audio
+                if (!onComplete) {
+                    isCurrentlyLoadingOrPlaying = false;
+                }
+                
                 if (onComplete) {
                     onComplete();
                 } else {
@@ -894,18 +907,34 @@
                 return;
             }
 
-            // CRITICAL: Stop any currently playing audio BEFORE starting new one
-            if (currentAudio) {
+            // CRITICAL: Prevent racing through lines - wait if audio is currently loading/playing
+            // Exception: allow multi-part lines (those with onComplete) to proceed
+            if (!onComplete && isCurrentlyLoadingOrPlaying) {
+                console.log(`BLOCKING: Already loading/playing audio (flag is true), SKIPPING this speakText call for: "${text.substring(0, 30)}..."`);
+                // Don't retry, don't continue - just return and let the current audio finish
+                // When it finishes, onended will call readNext() which will process the next line
+                return;
+            }
+
+            // Mark that we're now loading/playing
+            if (!onComplete) {
+                isCurrentlyLoadingOrPlaying = true;
+                console.log(`FLAG SET TO TRUE - Starting to load audio for: "${text.substring(0, 30)}..."`);
+            }
+
+            // Only stop existing audio if this is NOT part of a callback chain
+            // (i.e., if there's no onComplete callback, this is a new line starting)
+            if (!onComplete && currentAudio) {
                 console.log('STOPPING EXISTING AUDIO before new audio');
                 currentAudio.pause();
                 currentAudio.src = '';
                 currentAudio = null;
             }
             
-            // Create a unique session ID for this audio
-            currentAudioSessionId++;
+            // Session ID stays the same during normal reading flow
+            // It only gets incremented when user interrupts (stop, click new line, etc)
             const thisSessionId = currentAudioSessionId;
-            console.log(`Starting audio session ${thisSessionId}`);
+            console.log(`Starting audio session ${thisSessionId}${onComplete ? ' (part of multi-part line)' : ' (new line)'}`);
 
             try {
                 const voice = voices[voiceIndex];
@@ -924,7 +953,7 @@
                 const audioBlob = await response.blob();
                 const audioUrl = URL.createObjectURL(audioBlob);
                 
-                // Check if this session is still valid (not superseded by a newer one)
+                // Check if this session is still valid (user may have interrupted)
                 if (thisSessionId !== currentAudioSessionId) {
                     console.log(`Session ${thisSessionId} superseded by ${currentAudioSessionId}, aborting`);
                     URL.revokeObjectURL(audioUrl);
@@ -933,7 +962,7 @@
                 
                 // Check if we're still supposed to be playing
                 if (!isPlaying || isJumping) {
-                    console.log(`Session ${thisSessionId} - no longer playing, aborting`);
+                    console.log(`Session ${thisSessionId} - no longer playing (isPlaying=${isPlaying}, isJumping=${isJumping}), aborting`);
                     URL.revokeObjectURL(audioUrl);
                     return;
                 }
@@ -948,27 +977,53 @@
                 
                 currentAudio = new Audio(audioUrl);
                 currentAudio.volume = volumeLevel * characterVolume;
+                currentAudio.playsInline = true; // Mobile fix: prevent fullscreen (correct property name)
+                currentAudio.preload = 'auto'; // Mobile fix: preload audio
 
                 currentAudio.onended = () => {
+                    console.log(`✅ Audio ENDED event fired for session ${thisSessionId}`);
                     URL.revokeObjectURL(audioUrl);
                     currentAudio = null;
+                    isCurrentlyLoadingOrPlaying = false;
+                    console.log('FLAG SET TO FALSE - Audio ended, ready for next line');
                     if (!isJumping && isPlaying && !isPaused) {
                         if (onComplete) {
                             onComplete();
                         } else {
-                            // Apply pause before moving to next line
                             if (pauseAfterSpeaking > 0) {
                                 setTimeout(() => readNext(), pauseAfterSpeaking);
                             } else {
                                 readNext();
                             }
                         }
+                    } else {
+                        console.log(`Not continuing: isJumping=${isJumping}, isPlaying=${isPlaying}, isPaused=${isPaused}`);
                     }
                 };
+                
+                // Mobile Safari sometimes doesn't fire onended - add backup with timeupdate
+                let hasEnded = false;
+                currentAudio.addEventListener('timeupdate', function() {
+                    if (this.currentTime > 0 && this.duration > 0) {
+                        // If we're within 0.1 seconds of the end, treat as ended
+                        if (this.duration - this.currentTime < 0.1 && !hasEnded) {
+                            hasEnded = true;
+                            console.log(`⏰ Audio near end detected via timeupdate (${this.currentTime}/${this.duration}), triggering end sequence`);
+                            setTimeout(() => {
+                                if (currentAudio === this) {
+                                    console.log('Manually triggering onended via timeupdate');
+                                    this.onended();
+                                }
+                            }, 100);
+                        }
+                    }
+                });
 
-                currentAudio.onerror = () => {
+                currentAudio.onerror = (e) => {
+                    console.error(`Audio error for session ${thisSessionId}:`, e);
                     URL.revokeObjectURL(audioUrl);
                     currentAudio = null;
+                    isCurrentlyLoadingOrPlaying = false; // Allow next line to load
                     if (!isJumping && isPlaying && !isPaused) {
                         if (onComplete) {
                             onComplete();
@@ -984,11 +1039,34 @@
                 };
 
                 if (!isPaused && isPlaying) {
-                    currentAudio.play();
+                    console.log(`Attempting to play audio for session ${thisSessionId}`);
+                    // Mobile browsers require proper promise handling for audio.play()
+                    const playPromise = currentAudio.play();
+                    if (playPromise !== undefined) {
+                        playPromise.then(() => {
+                            console.log(`Audio started playing successfully for session ${thisSessionId}`);
+                        }).catch(error => {
+                            console.error('Play failed:', error);
+                            status.textContent = 'Playback error - tap Play again';
+                            isCurrentlyLoadingOrPlaying = false; // Allow next line to load
+                            // Try to continue to next line even if this one failed
+                            if (!isJumping && isPlaying && !isPaused) {
+                                if (onComplete) {
+                                    onComplete();
+                                } else {
+                                    readNext();
+                                }
+                            }
+                        });
+                    }
+                } else {
+                    console.log(`Not playing: isPaused=${isPaused}, isPlaying=${isPlaying}`);
+                    isCurrentlyLoadingOrPlaying = false; // Reset flag if not playing
                 }
             } catch (error) {
                 console.error('Error:', error);
                 status.textContent = 'Error generating speech';
+                isCurrentlyLoadingOrPlaying = false; // Allow next line to load
                 if (isPlaying && !isPaused && !isJumping) {
                     if (onComplete) {
                         onComplete();
@@ -1022,6 +1100,7 @@
                 currentAudio = null;
             }
             audioQueue = [];
+            isCurrentlyLoadingOrPlaying = false; // Reset loading flag
             isPlaying = false;
             isPaused = false;
             currentIndex = 0;
