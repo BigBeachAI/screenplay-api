@@ -894,18 +894,21 @@
                 return;
             }
 
-            // CRITICAL: Stop any currently playing audio BEFORE starting new one
-            if (currentAudio) {
+            // Only stop existing audio if this is NOT part of a callback chain
+            // (i.e., if there's no onComplete callback, this is a new line starting)
+            if (!onComplete && currentAudio) {
                 console.log('STOPPING EXISTING AUDIO before new audio');
                 currentAudio.pause();
                 currentAudio.src = '';
                 currentAudio = null;
             }
             
-            // Create a unique session ID for this audio
-            currentAudioSessionId++;
+            // Only increment session ID for new lines, not for parts within same line
+            if (!onComplete) {
+                currentAudioSessionId++;
+            }
             const thisSessionId = currentAudioSessionId;
-            console.log(`Starting audio session ${thisSessionId}`);
+            console.log(`Starting audio session ${thisSessionId}${onComplete ? ' (part of multi-part line)' : ''}`);
 
             try {
                 const voice = voices[voiceIndex];
