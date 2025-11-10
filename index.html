@@ -909,11 +909,19 @@
 
             // CRITICAL: Prevent racing through lines - wait if audio is currently loading/playing
             // Exception: allow multi-part lines (those with onComplete) to proceed
+            // TEMPORARILY DISABLED FOR MOBILE DEBUGGING
+            /*
             if (!onComplete && isCurrentlyLoadingOrPlaying) {
                 console.log(`BLOCKING: Already loading/playing audio (flag is true), SKIPPING this speakText call for: "${text.substring(0, 30)}..."`);
                 // Don't retry, don't continue - just return and let the current audio finish
                 // When it finishes, onended will call readNext() which will process the next line
                 return;
+            }
+            */
+            
+            // Log instead of blocking
+            if (!onComplete && isCurrentlyLoadingOrPlaying) {
+                console.log(`⚠️ WARNING: Already loading/playing (flag=${isCurrentlyLoadingOrPlaying}), but proceeding anyway for mobile compatibility`);
             }
 
             // Mark that we're now loading/playing
@@ -982,6 +990,7 @@
 
                 currentAudio.onended = () => {
                     console.log(`✅ Audio ENDED event fired for session ${thisSessionId}`);
+                    status.textContent = `✅ Line ${currentIndex} ended - moving to next`;
                     URL.revokeObjectURL(audioUrl);
                     currentAudio = null;
                     isCurrentlyLoadingOrPlaying = false;
@@ -997,27 +1006,10 @@
                             }
                         }
                     } else {
+                        status.textContent = `⏸️ Stopped: jumping=${isJumping}, playing=${isPlaying}, paused=${isPaused}`;
                         console.log(`Not continuing: isJumping=${isJumping}, isPlaying=${isPlaying}, isPaused=${isPaused}`);
                     }
                 };
-                
-                // Mobile Safari sometimes doesn't fire onended - add backup with timeupdate
-                let hasEnded = false;
-                currentAudio.addEventListener('timeupdate', function() {
-                    if (this.currentTime > 0 && this.duration > 0) {
-                        // If we're within 0.1 seconds of the end, treat as ended
-                        if (this.duration - this.currentTime < 0.1 && !hasEnded) {
-                            hasEnded = true;
-                            console.log(`⏰ Audio near end detected via timeupdate (${this.currentTime}/${this.duration}), triggering end sequence`);
-                            setTimeout(() => {
-                                if (currentAudio === this) {
-                                    console.log('Manually triggering onended via timeupdate');
-                                    this.onended();
-                                }
-                            }, 100);
-                        }
-                    }
-                });
 
                 currentAudio.onerror = (e) => {
                     console.error(`Audio error for session ${thisSessionId}:`, e);
