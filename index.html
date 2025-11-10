@@ -6,313 +6,35 @@
     <title>Screenplay Reader - ElevenLabs</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        /* Improve touch targets and prevent unwanted selections */
-        button, .file-label, .screenplay-line {
-            -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
-            touch-action: manipulation;
-        }
-        
-        body { 
-            font-family: 'Courier', 'Courier New', monospace; 
-            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
-            background-attachment: fixed;
-            color: #fff; 
-            font-size: 12pt; 
-            min-height: 100vh;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-        .header { 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 25px 20px; 
-            text-align: center; 
-            position: sticky; 
-            top: 0; 
-            z-index: 100;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            backdrop-filter: blur(10px);
-        }
-        
-        .header > * {
-            position: relative;
-        }
-        h1 { 
-            color: #ffffff; 
-            font-size: 2.2em; 
-            font-family: 'Segoe UI', sans-serif; 
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-            font-weight: 700;
-            letter-spacing: 1px;
-        }
-        .controls { 
-            display: flex; 
-            gap: 12px; 
-            justify-content: center; 
-            align-items: center; 
-            flex-wrap: wrap;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-        }
-        .file-label, button { 
-            padding: 12px 28px; 
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            border-radius: 12px; 
-            cursor: pointer; 
-            color: white; 
-            font-weight: 600; 
-            font-family: 'Segoe UI', sans-serif; 
-            border: none; 
-            font-size: 1em;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
-        }
-        .file-label:hover, button:not(:disabled):hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(245, 87, 108, 0.6);
-        }
-        button:disabled { 
-            opacity: 0.5; 
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
+        body { font-family: 'Courier', 'Courier New', monospace; background: #1a1a2e; color: #fff; font-size: 12pt; }
+        .header { background: #0f3460; padding: 20px; text-align: center; position: sticky; top: 0; z-index: 100; }
+        h1 { color: #e94560; font-size: 1.8em; font-family: 'Segoe UI', sans-serif; margin-bottom: 15px; }
+        .controls { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
+        .file-label, button { padding: 12px 30px; background: #e94560; border-radius: 8px; cursor: pointer; color: white; font-weight: 600; font-family: 'Segoe UI', sans-serif; border: none; font-size: 1em; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
         input[type="file"] { display: none; }
-        input[type="number"], input[type="range"] {
-            transition: all 0.3s ease;
-        }
-        input[type="number"]:focus {
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(245, 87, 108, 0.3);
-        }
-        .screenplay-page { 
-            width: 8.5in; 
-            margin: 40px auto; 
-            background: white; 
-            color: black; 
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        .pdf-page { 
-            min-height: 11in; 
-            padding: 1in 0; 
-            page-break-after: always; 
-            position: relative; 
-        }
-        .pdf-page:not(:last-child) { 
-            border-bottom: 3px solid rgba(102, 126, 234, 0.2); 
-            margin-bottom: 40px; 
-        }
-        .page-number { 
-            position: absolute; 
-            top: 0.5in; 
-            right: 1in; 
-            color: #999; 
-            font-size: 10pt; 
-            font-family: 'Segoe UI', sans-serif; 
-        }
-        .screenplay-line { 
-            margin-bottom: 0; 
-            line-height: 1; 
-            white-space: pre-wrap; 
-            cursor: pointer; 
-            transition: all 0.2s ease;
-            border-radius: 4px;
-            padding: 2px 4px;
-        }
-        .screenplay-line:hover { 
-            background-color: rgba(102, 126, 234, 0.15);
-            transform: translateX(2px);
-        }
-        .highlight { 
-            background: linear-gradient(120deg, #f6d365 0%, #fda085 100%);
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.85; }
-        }
-        .selected-start { 
-            background: rgba(102, 126, 234, 0.2); 
-            border-left: 4px solid #667eea; 
-            padding-left: 12px;
-            box-shadow: -4px 0 8px rgba(102, 126, 234, 0.2);
-        }
-        .upload-area { 
-            text-align: center; 
-            padding: 120px 20px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 20px;
-            margin: 40px 20px;
-            border: 2px dashed rgba(255, 255, 255, 0.2);
-        }
-        .upload-area h2 {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            font-size: 2em;
-            margin-bottom: 20px;
-        }
-        .upload-area p {
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 1.1em;
-            margin: 10px 0;
-        }
-        .status { 
-            position: fixed; 
-            bottom: 20px; 
-            right: 20px; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 15px 25px; 
-            border-radius: 15px;
-            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
-            font-family: 'Segoe UI', sans-serif;
-            font-weight: 500;
-            backdrop-filter: blur(10px);
-        }
-        .voice-panel { 
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            padding: 20px; 
-            margin-top: 15px; 
-            border-radius: 15px; 
-            max-height: 250px; 
-            overflow-y: auto; 
-            transition: all 0.4s ease;
-            position: relative;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        .voice-panel.hidden { 
-            max-height: 0; 
-            margin-top: 0; 
-            padding-top: 0; 
-            padding-bottom: 0; 
-            opacity: 0; 
-            overflow: hidden; 
-        }
-        .voice-panel h3 { 
-            position: sticky; 
-            top: 0; 
-            background: rgba(102, 126, 234, 0.9);
-            backdrop-filter: blur(10px);
-            padding: 10px; 
-            margin: -20px -20px 15px -20px;
-            z-index: 1; 
-            font-size: 1.1em; 
-            color: #ffffff;
-            border-radius: 15px 15px 0 0;
-            font-weight: 600;
-        }
-        .voice-panel::-webkit-scrollbar {
-            width: 8px;
-        }
-        .voice-panel::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-        }
-        .voice-panel::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 10px;
-        }
-        .voice-item { 
-            display: grid; 
-            grid-template-columns: 120px 1fr; 
-            gap: 12px; 
-            margin-bottom: 12px; 
-            font-size: 0.95em;
-            align-items: center;
-        }
-        .voice-item label { 
-            color: #ffffff; 
-            font-weight: 600;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
-        }
-        .voice-item select { 
-            padding: 8px 12px; 
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(10px);
-            color: white; 
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 8px; 
-            font-size: 0.9em;
-            transition: all 0.3s ease;
-        }
-        .voice-item select:hover {
-            border-color: rgba(255, 255, 255, 0.5);
-            background: rgba(255, 255, 255, 0.2);
-        }
-        .voice-item select:focus {
-            outline: none;
-            border-color: #f5576c;
-            box-shadow: 0 0 0 3px rgba(245, 87, 108, 0.2);
-        }
-        .voice-toggle-btn { 
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(10px);
-            color: #ffffff; 
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            padding: 10px 24px; 
-            border-radius: 12px;
-            font-weight: 600;
-        }
-        .voice-toggle-btn:hover { 
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            border-color: transparent;
-            color: white; 
-        }
-        
-        /* Header collapse functionality */
-        .header.collapsed .controls,
-        .header.collapsed h1 {
-            display: none;
-        }
-        
-        .header.collapsed {
-            padding: 5px;
-            min-height: auto;
-        }
-        
-        .header-toggle {
-            position: fixed;
-            top: 15px;
-            right: 15px;
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            border: 3px solid white;
-            color: white;
-            padding: 12px 18px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 1.6em;
-            font-weight: bold;
-            z-index: 9999;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-            line-height: 1;
-            width: 50px;
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .header-toggle:hover {
-            transform: scale(1.15);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-        }
-        
-        .header.collapsed .header-toggle {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
+        .screenplay-page { width: 8.5in; margin: 40px auto; background: white; color: black; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+        .pdf-page { min-height: 11in; padding: 1in 0; page-break-after: always; position: relative; }
+        .pdf-page:not(:last-child) { border-bottom: 3px solid #1a1a2e; margin-bottom: 40px; }
+        .page-number { position: absolute; top: 0.5in; right: 1in; color: #999; font-size: 10pt; font-family: 'Segoe UI', sans-serif; }
+        .screenplay-line { margin-bottom: 0; line-height: 1; white-space: pre-wrap; cursor: pointer; transition: background-color 0.2s; }
+        .screenplay-line:hover { background-color: rgba(233, 69, 96, 0.2); }
+        .highlight { background: yellow; }
+        .selected-start { background: rgba(233, 69, 96, 0.3); border-left: 4px solid #e94560; padding-left: 8px; }
+        .upload-area { text-align: center; padding: 100px 20px; color: #aaa; }
+        .status { position: fixed; bottom: 20px; right: 20px; background: #0f3460; padding: 15px 25px; border-radius: 10px; }
+        .voice-panel { background: #16213e; padding: 15px; margin-top: 10px; border-radius: 10px; max-height: 200px; overflow-y: auto; transition: max-height 0.3s ease, margin 0.3s ease, padding 0.3s ease, opacity 0.3s ease; position: relative; }
+        .voice-panel.hidden { max-height: 0; margin-top: 0; padding-top: 0; padding-bottom: 0; opacity: 0; overflow: hidden; }
+        .voice-panel h3 { position: sticky; top: 0; background: #16213e; padding-bottom: 8px; z-index: 1; font-size: 1em; color: #e94560; }
+        .voice-item { display: grid; grid-template-columns: 120px 1fr; gap: 10px; margin-bottom: 8px; font-size: 0.9em; }
+        .voice-item label { color: #e94560; font-weight: bold; }
+        .voice-item select { padding: 6px; background: #0f3460; color: white; border: 2px solid #e94560; border-radius: 5px; font-size: 0.9em; }
+        .voice-toggle-btn { background: #16213e; color: #e94560; border: 2px solid #e94560; padding: 8px 20px; border-radius: 8px; }
+        .voice-toggle-btn:hover { background: #e94560; color: white; }
     </style>
 </head>
 <body>
-    <div class="header" id="header">
-        <button class="header-toggle" id="headerToggle" title="Hide/Show Controls">▼</button>
+    <div class="header">
         <h1>🎬 Screenplay Reader - ElevenLabs Edition</h1>
         
         <div class="controls">
@@ -337,7 +59,7 @@
                 <span id="volumeValue" style="color: white; font-family: 'Segoe UI', sans-serif; width: 40px;">100%</span>
             </div>
             
-            <button id="playPauseBtn" disabled>▶️ Play</button>
+            <button id="playBtn" disabled>▶️ Play</button>
             <button id="stopBtn" disabled>⏹️ Stop</button>
             <button class="voice-toggle-btn" id="voiceToggleBtn" style="display: none;">Hide Voices ▲</button>
         </div>
@@ -381,14 +103,14 @@
         let volumeLevel = 1.0;
         let currentAudio = null;
         let audioQueue = [];
-        let isCurrentlyLoadingOrPlaying = false; // Prevent multiple simultaneous audio loads
+        let isLoadingAudio = false;
         let abortController = null; // NEW: To cancel pending requests
-        let currentAudioSessionId = 0; // NEW: Track which audio session is active
 
         const fileInput = document.getElementById('fileInput');
         const screenplayContent = document.getElementById('screenplayContent');
         const status = document.getElementById('status');
-        const playPauseBtn = document.getElementById('playPauseBtn');
+        const playBtn = document.getElementById('playBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
         const stopBtn = document.getElementById('stopBtn');
         const voicePanel = document.getElementById('voicePanel');
         const narratorVoice = document.getElementById('narratorVoice');
@@ -401,14 +123,6 @@
         const pageJump = document.getElementById('pageJump');
         const jumpBtn = document.getElementById('jumpBtn');
         const voiceToggleBtn = document.getElementById('voiceToggleBtn');
-        const header = document.getElementById('header');
-        const headerToggle = document.getElementById('headerToggle');
-
-        // Header collapse toggle
-        headerToggle.addEventListener('click', () => {
-            header.classList.toggle('collapsed');
-            headerToggle.textContent = header.classList.contains('collapsed') ? '▲' : '▼';
-        });
 
         speedControl.addEventListener('input', (e) => {
             playbackSpeed = parseFloat(e.target.value);
@@ -428,7 +142,7 @@
             if (pageNum && pageNum >= 1) {
                 const firstElementOnPage = elements.find(el => el.page === pageNum);
                 if (firstElementOnPage) {
-                    firstElementOnPage.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    firstElementOnPage.element.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     document.querySelectorAll('.selected-start').forEach(el => el.classList.remove('selected-start'));
                     firstElementOnPage.element.classList.add('selected-start');
                     selectedStartIndex = firstElementOnPage.id;
@@ -491,7 +205,7 @@
 
             try {
                 await loadPDF(file);
-                playPauseBtn.disabled = false;
+                playBtn.disabled = false;
                 jumpBtn.disabled = false;
                 status.textContent = 'Ready to play';
             } catch (error) {
@@ -595,10 +309,7 @@
                                     console.log('USER CLICKED NEW LINE - FORCE STOP ALL AUDIO');
                                     isJumping = true;
                                     isPaused = false;
-                                    playPauseBtn.textContent = '⏸️ Pause';
-                                    
-                                    // Invalidate any pending audio sessions
-                                    currentAudioSessionId++;
+                                    pauseBtn.textContent = '⏸️ Pause';
                                     
                                     // NUCLEAR OPTION: Stop everything
                                     if (abortController) {
@@ -611,17 +322,17 @@
                                         currentAudio = null;
                                     }
                                     audioQueue = [];
-                                    isCurrentlyLoadingOrPlaying = false; // Reset the loading flag
+                                    isLoadingAudio = false;
                                     
                                     const foundIndex = elements.findIndex(el => el.id === capturedId);
                                     currentIndex = foundIndex >= 0 ? foundIndex : 0;
                                     
-                                    // Wait a brief moment to ensure everything stopped
+                                    // Wait a bit longer to ensure everything stopped
                                     setTimeout(() => {
                                         console.log('Restarting from new position');
                                         isJumping = false;
                                         readNext();
-                                    }, 50);
+                                    }, 200);
                                 }
                             });
                         })(elementId);
@@ -688,22 +399,28 @@
             });
         }
 
-        playPauseBtn.addEventListener('click', () => {
+        playBtn.addEventListener('click', () => {
             if (isPaused) {
-                // Resume
                 isPaused = false;
-                playPauseBtn.textContent = '⏸️ Pause';
+                pauseBtn.textContent = '⏸️ Pause';
                 if (currentAudio) currentAudio.play();
                 status.textContent = 'Playing...';
             } else if (!isPlaying) {
-                // Start playing
                 startReading();
-            } else if (isPlaying) {
-                // Pause
+            }
+        });
+
+        pauseBtn.addEventListener('click', () => {
+            if (isPlaying && !isPaused) {
                 isPaused = true;
-                playPauseBtn.textContent = '▶️ Resume';
+                pauseBtn.textContent = '▶️ Resume';
                 if (currentAudio) currentAudio.pause();
                 status.textContent = 'Paused';
+            } else if (isPaused) {
+                isPaused = false;
+                pauseBtn.textContent = '⏸️ Pause';
+                if (currentAudio) currentAudio.play();
+                status.textContent = 'Playing...';
             }
         });
 
@@ -711,9 +428,6 @@
 
         function startReading() {
             console.log('START READING - CLEARING ALL AUDIO');
-            
-            // Invalidate any pending audio sessions
-            currentAudioSessionId++;
             
             // Nuclear option: stop everything
             if (abortController) {
@@ -726,7 +440,7 @@
                 currentAudio = null;
             }
             audioQueue = [];
-            isCurrentlyLoadingOrPlaying = false; // Reset loading flag
+            isLoadingAudio = false;
             
             if (selectedStartIndex !== null) {
                 const foundIndex = elements.findIndex(el => el.id === selectedStartIndex);
@@ -737,27 +451,23 @@
             
             isPlaying = true;
             isPaused = false;
-            playPauseBtn.disabled = false;
-            playPauseBtn.textContent = '⏸️ Pause';
+            playBtn.disabled = true;
+            pauseBtn.disabled = false;
             stopBtn.disabled = false;
+            pauseBtn.textContent = '⏸️ Pause';
             status.textContent = 'Starting...';
             
-            readNext();
+            setTimeout(() => readNext(), 150);
         }
 
         function readNext() {
-            console.log(`readNext called - isPlaying: ${isPlaying}, isPaused: ${isPaused}, currentIndex: ${currentIndex}/${elements.length}`);
-            if (!isPlaying || currentIndex >= elements.length || isPaused) {
-                if (currentIndex >= elements.length) {
-                    console.log('Reached end of script, stopping');
-                    stopReading();
-                }
+            if (!isPlaying || currentIndex >= elements.length || isPaused || isLoadingAudio) {
+                if (currentIndex >= elements.length && !isLoadingAudio) stopReading();
                 return;
             }
 
             const element = elements[currentIndex];
             currentIndex++;
-            console.log(`Processing element ${currentIndex}: type=${element.isDialogue ? 'dialogue' : element.isSceneHeading ? 'heading' : 'action'}`);
 
             document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
             element.element.classList.add('highlight');
@@ -765,7 +475,6 @@
             status.textContent = 'Reading: ' + currentIndex + '/' + elements.length;
 
             if (element.isCharacter) {
-                console.log('Skipping character name, moving to next');
                 readNext();
                 return;
             }
@@ -800,140 +509,26 @@
             }
 
             const spokenText = expandAbbreviations(fullText);
+            let voiceIndex = parseInt(narratorVoice.value) || 0;
+            let characterVolume = parseFloat(narratorVolume.value) || 1.0;
             
-            // Add natural pause after scene headings
-            const pauseAfterSpeaking = element.isSceneHeading ? 500 : 0;
-            
-            // Check if text contains parentheses - if so, split and handle separately
-            const parentheticalRegex = /\(([^)]+)\)/g;
-            if (parentheticalRegex.test(fullText)) {
-                // Text has parentheticals - need to split it up
-                const parts = [];
-                let lastIndex = 0;
-                const matches = [...fullText.matchAll(/\(([^)]+)\)/g)];
-                
-                matches.forEach((match) => {
-                    // Add text before parenthetical (if any) with character voice
-                    if (match.index > lastIndex) {
-                        const beforeText = fullText.substring(lastIndex, match.index).trim();
-                        if (beforeText) {
-                            let voiceIndex = parseInt(narratorVoice.value) || 0;
-                            let characterVolume = parseFloat(narratorVolume.value) || 1.0;
-                            if (element.isDialogue && element.character && characterVoiceMap[element.character] !== undefined) {
-                                voiceIndex = characterVoiceMap[element.character];
-                                characterVolume = characterVolumeMap[element.character] || 1.0;
-                            }
-                            parts.push({ text: expandAbbreviations(beforeText), voiceIndex, characterVolume });
-                        }
-                    }
-                    
-                    // Add parenthetical with narrator voice
-                    const parentheticalText = match[1].trim();
-                    if (parentheticalText) {
-                        parts.push({ 
-                            text: expandAbbreviations(parentheticalText), 
-                            voiceIndex: parseInt(narratorVoice.value) || 0,
-                            characterVolume: parseFloat(narratorVolume.value) || 1.0
-                        });
-                    }
-                    
-                    lastIndex = match.index + match[0].length;
-                });
-                
-                // Add any remaining text after last parenthetical
-                if (lastIndex < fullText.length) {
-                    const afterText = fullText.substring(lastIndex).trim();
-                    if (afterText) {
-                        let voiceIndex = parseInt(narratorVoice.value) || 0;
-                        let characterVolume = parseFloat(narratorVolume.value) || 1.0;
-                        if (element.isDialogue && element.character && characterVoiceMap[element.character] !== undefined) {
-                            voiceIndex = characterVoiceMap[element.character];
-                            characterVolume = characterVolumeMap[element.character] || 1.0;
-                        }
-                        parts.push({ text: expandAbbreviations(afterText), voiceIndex, characterVolume });
-                    }
-                }
-                
-                // Speak each part in sequence
-                speakTextParts(parts, 0, pauseAfterSpeaking);
-            } else {
-                // No parentheticals - speak normally
-                let voiceIndex = parseInt(narratorVoice.value) || 0;
-                let characterVolume = parseFloat(narratorVolume.value) || 1.0;
-                
-                if (element.isDialogue && element.character && characterVoiceMap[element.character] !== undefined) {
-                    voiceIndex = characterVoiceMap[element.character];
-                    characterVolume = characterVolumeMap[element.character] || 1.0;
-                }
+            if (element.isDialogue && element.character && characterVoiceMap[element.character] !== undefined) {
+                voiceIndex = characterVoiceMap[element.character];
+                characterVolume = characterVolumeMap[element.character] || 1.0;
+            }
 
-                speakText(spokenText, voiceIndex, characterVolume, null, pauseAfterSpeaking);
-            }
-        }
-        
-        function speakTextParts(parts, index, pauseAfterSpeaking) {
-            if (index >= parts.length || !isPlaying || isJumping) {
-                // Apply pause before moving to next line (only after last part)
-                if (pauseAfterSpeaking > 0) {
-                    setTimeout(() => readNext(), pauseAfterSpeaking);
-                } else {
-                    readNext();
-                }
-                return;
-            }
-            
-            const part = parts[index];
-            const isLastPart = index === parts.length - 1;
-            speakText(part.text, part.voiceIndex, part.characterVolume, () => {
-                speakTextParts(parts, index + 1, pauseAfterSpeaking);
-            }, isLastPart ? 0 : 0); // Only pause after the very last part
+            speakText(spokenText, voiceIndex, characterVolume);
         }
 
-        async function speakText(text, voiceIndex, characterVolume, onComplete, pauseAfterSpeaking = 0) {
+        async function speakText(text, voiceIndex, characterVolume) {
             if (!text || text.trim() === '') {
-                // Reset flag since we're not actually loading audio
-                if (!onComplete) {
-                    isCurrentlyLoadingOrPlaying = false;
-                }
-                
-                if (onComplete) {
-                    onComplete();
-                } else {
-                    if (pauseAfterSpeaking > 0) {
-                        setTimeout(() => readNext(), pauseAfterSpeaking);
-                    } else {
-                        readNext();
-                    }
-                }
+                readNext();
                 return;
             }
 
-            // CRITICAL: Prevent racing through lines - wait if audio is currently loading/playing
-            // Exception: allow multi-part lines (those with onComplete) to proceed
-            if (!onComplete && isCurrentlyLoadingOrPlaying) {
-                console.log('Already loading/playing audio, SKIPPING this call - audio onended will handle continuation');
-                // Don't retry, don't continue - just return and let the current audio finish
-                // When it finishes, onended will call readNext() which will process the next line
-                return;
-            }
-
-            // Mark that we're now loading/playing
-            if (!onComplete) {
-                isCurrentlyLoadingOrPlaying = true;
-            }
-
-            // Only stop existing audio if this is NOT part of a callback chain
-            // (i.e., if there's no onComplete callback, this is a new line starting)
-            if (!onComplete && currentAudio) {
-                console.log('STOPPING EXISTING AUDIO before new audio');
-                currentAudio.pause();
-                currentAudio.src = '';
-                currentAudio = null;
-            }
-            
-            // Session ID stays the same during normal reading flow
-            // It only gets incremented when user interrupts (stop, click new line, etc)
-            const thisSessionId = currentAudioSessionId;
-            console.log(`Starting audio session ${thisSessionId}${onComplete ? ' (part of multi-part line)' : ' (new line)'}`);
+            // Prevent multiple simultaneous audio loads
+            if (isLoadingAudio) return;
+            isLoadingAudio = true;
 
             try {
                 const voice = voices[voiceIndex];
@@ -952,117 +547,63 @@
                 const audioBlob = await response.blob();
                 const audioUrl = URL.createObjectURL(audioBlob);
                 
-                // Check if this session is still valid (user may have interrupted)
-                if (thisSessionId !== currentAudioSessionId) {
-                    console.log(`Session ${thisSessionId} superseded by ${currentAudioSessionId}, aborting`);
-                    URL.revokeObjectURL(audioUrl);
-                    return;
-                }
-                
                 // Check if we're still supposed to be playing
                 if (!isPlaying || isJumping) {
-                    console.log(`Session ${thisSessionId} - no longer playing (isPlaying=${isPlaying}, isJumping=${isJumping}), aborting`);
                     URL.revokeObjectURL(audioUrl);
+                    isLoadingAudio = false;
                     return;
-                }
-                
-                // Final check: stop any existing audio right before playing
-                if (currentAudio) {
-                    console.log('EMERGENCY: Stopping audio that somehow still exists');
-                    currentAudio.pause();
-                    currentAudio.src = '';
-                    currentAudio = null;
                 }
                 
                 currentAudio = new Audio(audioUrl);
-                currentAudio.volume = volumeLevel * characterVolume;
 
                 currentAudio.onended = () => {
-                    console.log(`Audio ended for session ${thisSessionId}`);
                     URL.revokeObjectURL(audioUrl);
                     currentAudio = null;
+                    isLoadingAudio = false;
                     if (!isJumping && isPlaying && !isPaused) {
-                        isCurrentlyLoadingOrPlaying = false; // Reset BEFORE continuing
-                        if (onComplete) {
-                            onComplete();
-                        } else {
-                            // Apply pause before moving to next line
-                            if (pauseAfterSpeaking > 0) {
-                                setTimeout(() => readNext(), pauseAfterSpeaking);
-                            } else {
-                                readNext();
-                            }
-                        }
-                    } else {
-                        isCurrentlyLoadingOrPlaying = false; // Reset even if not continuing
-                        console.log(`Not continuing: isJumping=${isJumping}, isPlaying=${isPlaying}, isPaused=${isPaused}`);
+                        readNext();
                     }
                 };
 
-                currentAudio.onerror = (e) => {
-                    console.error(`Audio error for session ${thisSessionId}:`, e);
+                currentAudio.onerror = () => {
                     URL.revokeObjectURL(audioUrl);
                     currentAudio = null;
+                    isLoadingAudio = false;
                     if (!isJumping && isPlaying && !isPaused) {
-                        isCurrentlyLoadingOrPlaying = false; // Reset BEFORE continuing
-                        if (onComplete) {
-                            onComplete();
-                        } else {
-                            // Apply pause before moving to next line
-                            if (pauseAfterSpeaking > 0) {
-                                setTimeout(() => readNext(), pauseAfterSpeaking);
-                            } else {
-                                readNext();
-                            }
-                        }
-                    } else {
-                        isCurrentlyLoadingOrPlaying = false; // Reset even if not continuing
+                        readNext();
                     }
                 };
 
                 if (!isPaused && isPlaying) {
-                    // Mobile browsers require proper promise handling for audio.play()
                     const playPromise = currentAudio.play();
                     if (playPromise !== undefined) {
-                        playPromise.catch(error => {
+                        playPromise.then(() => {
+                            isLoadingAudio = false;
+                        }).catch(error => {
                             console.error('Play failed:', error);
-                            status.textContent = 'Playback error - tap to retry';
-                            isCurrentlyLoadingOrPlaying = false; // Allow next line to load
-                            // Try to continue to next line even if this one failed
-                            if (!isJumping && isPlaying && !isPaused) {
-                                if (onComplete) {
-                                    onComplete();
-                                } else {
-                                    readNext();
-                                }
+                            isLoadingAudio = false;
+                            if (isPlaying && !isPaused) {
+                                readNext();
                             }
                         });
+                    } else {
+                        isLoadingAudio = false;
                     }
+                } else {
+                    isLoadingAudio = false;
                 }
             } catch (error) {
                 console.error('Error:', error);
                 status.textContent = 'Error generating speech';
-                isCurrentlyLoadingOrPlaying = false; // Allow next line to load
+                isLoadingAudio = false;
                 if (isPlaying && !isPaused && !isJumping) {
-                    if (onComplete) {
-                        onComplete();
-                    } else {
-                        // Apply pause before moving to next line
-                        if (pauseAfterSpeaking > 0) {
-                            setTimeout(() => readNext(), pauseAfterSpeaking);
-                        } else {
-                            readNext();
-                        }
-                    }
+                    readNext();
                 }
             }
         }
 
         function stopReading() {
             console.log('STOP READING - NUCLEAR SHUTDOWN');
-            
-            // Invalidate any pending audio sessions
-            currentAudioSessionId++;
             
             // Abort any pending requests
             if (abortController) {
@@ -1076,15 +617,16 @@
                 currentAudio = null;
             }
             audioQueue = [];
-            isCurrentlyLoadingOrPlaying = false; // Reset loading flag
+            isLoadingAudio = false;
             isPlaying = false;
             isPaused = false;
             currentIndex = 0;
 
             document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
-            playPauseBtn.disabled = false;
-            playPauseBtn.textContent = '▶️ Play';
+            playBtn.disabled = false;
+            pauseBtn.disabled = true;
             stopBtn.disabled = true;
+            pauseBtn.textContent = '⏸️ Pause';
             status.textContent = 'Stopped';
         }
     </script>
