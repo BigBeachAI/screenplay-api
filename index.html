@@ -909,19 +909,11 @@
 
             // CRITICAL: Prevent racing through lines - wait if audio is currently loading/playing
             // Exception: allow multi-part lines (those with onComplete) to proceed
-            // TEMPORARILY DISABLED FOR MOBILE DEBUGGING
-            /*
             if (!onComplete && isCurrentlyLoadingOrPlaying) {
                 console.log(`BLOCKING: Already loading/playing audio (flag is true), SKIPPING this speakText call for: "${text.substring(0, 30)}..."`);
                 // Don't retry, don't continue - just return and let the current audio finish
                 // When it finishes, onended will call readNext() which will process the next line
                 return;
-            }
-            */
-            
-            // Log instead of blocking
-            if (!onComplete && isCurrentlyLoadingOrPlaying) {
-                console.log(`⚠️ WARNING: Already loading/playing (flag=${isCurrentlyLoadingOrPlaying}), but proceeding anyway for mobile compatibility`);
             }
 
             // Mark that we're now loading/playing
@@ -1009,6 +1001,43 @@
                         status.textContent = `⏸️ Stopped: jumping=${isJumping}, playing=${isPlaying}, paused=${isPaused}`;
                         console.log(`Not continuing: isJumping=${isJumping}, isPlaying=${isPlaying}, isPaused=${isPaused}`);
                     }
+                };
+                
+                // MOBILE SAFARI FIX: Set a safety timeout in case onended never fires
+                // Estimate duration (most TTS lines are under 10 seconds, give 15 sec buffer)
+                const safetyTimeoutMs = 15000;
+                const audioSafetyTimeout = setTimeout(() => {
+                    if (isCurrentlyLoadingOrPlaying && currentAudio && thisSessionId === currentAudioSessionId) {
+                        console.warn(`🚨 SAFETY TIMEOUT: onended didn't fire after ${safetyTimeoutMs}ms, forcing continuation`);
+                        status.textContent = `⚠️ Audio timeout - forcing next line`;
+                        
+                        // Manually trigger the end sequence
+                        if (currentAudio) {
+                            URL.revokeObjectURL(audioUrl);
+                            currentAudio.pause();
+                            currentAudio = null;
+                        }
+                        isCurrentlyLoadingOrPlaying = false;
+                        
+                        if (!isJumping && isPlaying && !isPaused) {
+                            if (onComplete) {
+                                onComplete();
+                            } else {
+                                if (pauseAfterSpeaking > 0) {
+                                    setTimeout(() => readNext(), pauseAfterSpeaking);
+                                } else {
+                                    readNext();
+                                }
+                            }
+                        }
+                    }
+                }, safetyTimeoutMs);
+                
+                // Clear safety timeout if onended fires normally
+                const originalOnended = currentAudio.onended;
+                currentAudio.onended = () => {
+                    clearTimeout(audioSafetyTimeout);
+                    originalOnended();
                 };
 
                 currentAudio.onerror = (e) => {
