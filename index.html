@@ -6,6 +6,13 @@
     <title>Screenplay Reader - ElevenLabs</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        /* Improve touch targets and prevent unwanted selections */
+        button, .file-label, .screenplay-line {
+            -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+            touch-action: manipulation;
+        }
+        
         body { 
             font-family: 'Courier', 'Courier New', monospace; 
             background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
@@ -13,6 +20,8 @@
             color: #fff; 
             font-size: 12pt; 
             min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         .header { 
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -23,6 +32,10 @@
             z-index: 100;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
             backdrop-filter: blur(10px);
+        }
+        
+        .header > * {
+            position: relative;
         }
         h1 { 
             color: #ffffff; 
@@ -252,10 +265,54 @@
             border-color: transparent;
             color: white; 
         }
+        
+        /* Header collapse functionality */
+        .header.collapsed .controls,
+        .header.collapsed h1 {
+            display: none;
+        }
+        
+        .header.collapsed {
+            padding: 5px;
+            min-height: auto;
+        }
+        
+        .header-toggle {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border: 3px solid white;
+            color: white;
+            padding: 12px 18px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.6em;
+            font-weight: bold;
+            z-index: 9999;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            line-height: 1;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .header-toggle:hover {
+            transform: scale(1.15);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .header.collapsed .header-toggle {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
     </style>
 </head>
 <body>
-    <div class="header">
+    <div class="header" id="header">
+        <button class="header-toggle" id="headerToggle" title="Hide/Show Controls">▼</button>
         <h1>🎬 Screenplay Reader - ElevenLabs Edition</h1>
         
         <div class="controls">
@@ -280,7 +337,7 @@
                 <span id="volumeValue" style="color: white; font-family: 'Segoe UI', sans-serif; width: 40px;">100%</span>
             </div>
             
-            <button id="playBtn" disabled>▶️ Play</button>
+            <button id="playPauseBtn" disabled>▶️ Play</button>
             <button id="stopBtn" disabled>⏹️ Stop</button>
             <button class="voice-toggle-btn" id="voiceToggleBtn" style="display: none;">Hide Voices ▲</button>
         </div>
@@ -326,12 +383,12 @@
         let audioQueue = [];
         let isLoadingAudio = false;
         let abortController = null; // NEW: To cancel pending requests
+        let currentAudioSessionId = 0; // NEW: Track which audio session is active
 
         const fileInput = document.getElementById('fileInput');
         const screenplayContent = document.getElementById('screenplayContent');
         const status = document.getElementById('status');
-        const playBtn = document.getElementById('playBtn');
-        const pauseBtn = document.getElementById('pauseBtn');
+        const playPauseBtn = document.getElementById('playPauseBtn');
         const stopBtn = document.getElementById('stopBtn');
         const voicePanel = document.getElementById('voicePanel');
         const narratorVoice = document.getElementById('narratorVoice');
@@ -344,6 +401,14 @@
         const pageJump = document.getElementById('pageJump');
         const jumpBtn = document.getElementById('jumpBtn');
         const voiceToggleBtn = document.getElementById('voiceToggleBtn');
+        const header = document.getElementById('header');
+        const headerToggle = document.getElementById('headerToggle');
+
+        // Header collapse toggle
+        headerToggle.addEventListener('click', () => {
+            header.classList.toggle('collapsed');
+            headerToggle.textContent = header.classList.contains('collapsed') ? '▲' : '▼';
+        });
 
         speedControl.addEventListener('input', (e) => {
             playbackSpeed = parseFloat(e.target.value);
@@ -363,7 +428,7 @@
             if (pageNum && pageNum >= 1) {
                 const firstElementOnPage = elements.find(el => el.page === pageNum);
                 if (firstElementOnPage) {
-                    firstElementOnPage.element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    firstElementOnPage.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     document.querySelectorAll('.selected-start').forEach(el => el.classList.remove('selected-start'));
                     firstElementOnPage.element.classList.add('selected-start');
                     selectedStartIndex = firstElementOnPage.id;
@@ -426,7 +491,7 @@
 
             try {
                 await loadPDF(file);
-                playBtn.disabled = false;
+                playPauseBtn.disabled = false;
                 jumpBtn.disabled = false;
                 status.textContent = 'Ready to play';
             } catch (error) {
@@ -530,7 +595,10 @@
                                     console.log('USER CLICKED NEW LINE - FORCE STOP ALL AUDIO');
                                     isJumping = true;
                                     isPaused = false;
-                                    pauseBtn.textContent = '⏸️ Pause';
+                                    playPauseBtn.textContent = '⏸️ Pause';
+                                    
+                                    // Invalidate any pending audio sessions
+                                    currentAudioSessionId++;
                                     
                                     // NUCLEAR OPTION: Stop everything
                                     if (abortController) {
@@ -543,17 +611,16 @@
                                         currentAudio = null;
                                     }
                                     audioQueue = [];
-                                    isLoadingAudio = false;
                                     
                                     const foundIndex = elements.findIndex(el => el.id === capturedId);
                                     currentIndex = foundIndex >= 0 ? foundIndex : 0;
                                     
-                                    // Wait a bit longer to ensure everything stopped
+                                    // Wait a brief moment to ensure everything stopped
                                     setTimeout(() => {
                                         console.log('Restarting from new position');
                                         isJumping = false;
                                         readNext();
-                                    }, 200);
+                                    }, 50);
                                 }
                             });
                         })(elementId);
@@ -620,28 +687,22 @@
             });
         }
 
-        playBtn.addEventListener('click', () => {
+        playPauseBtn.addEventListener('click', () => {
             if (isPaused) {
+                // Resume
                 isPaused = false;
-                pauseBtn.textContent = '⏸️ Pause';
+                playPauseBtn.textContent = '⏸️ Pause';
                 if (currentAudio) currentAudio.play();
                 status.textContent = 'Playing...';
             } else if (!isPlaying) {
+                // Start playing
                 startReading();
-            }
-        });
-
-        pauseBtn.addEventListener('click', () => {
-            if (isPlaying && !isPaused) {
+            } else if (isPlaying) {
+                // Pause
                 isPaused = true;
-                pauseBtn.textContent = '▶️ Resume';
+                playPauseBtn.textContent = '▶️ Resume';
                 if (currentAudio) currentAudio.pause();
                 status.textContent = 'Paused';
-            } else if (isPaused) {
-                isPaused = false;
-                pauseBtn.textContent = '⏸️ Pause';
-                if (currentAudio) currentAudio.play();
-                status.textContent = 'Playing...';
             }
         });
 
@@ -649,6 +710,9 @@
 
         function startReading() {
             console.log('START READING - CLEARING ALL AUDIO');
+            
+            // Invalidate any pending audio sessions
+            currentAudioSessionId++;
             
             // Nuclear option: stop everything
             if (abortController) {
@@ -661,7 +725,6 @@
                 currentAudio = null;
             }
             audioQueue = [];
-            isLoadingAudio = false;
             
             if (selectedStartIndex !== null) {
                 const foundIndex = elements.findIndex(el => el.id === selectedStartIndex);
@@ -672,18 +735,17 @@
             
             isPlaying = true;
             isPaused = false;
-            playBtn.disabled = true;
-            pauseBtn.disabled = false;
+            playPauseBtn.disabled = false;
+            playPauseBtn.textContent = '⏸️ Pause';
             stopBtn.disabled = false;
-            pauseBtn.textContent = '⏸️ Pause';
             status.textContent = 'Starting...';
             
-            setTimeout(() => readNext(), 150);
+            readNext();
         }
 
         function readNext() {
-            if (!isPlaying || currentIndex >= elements.length || isPaused || isLoadingAudio) {
-                if (currentIndex >= elements.length && !isLoadingAudio) stopReading();
+            if (!isPlaying || currentIndex >= elements.length || isPaused) {
+                if (currentIndex >= elements.length) stopReading();
                 return;
             }
 
@@ -730,26 +792,120 @@
             }
 
             const spokenText = expandAbbreviations(fullText);
-            let voiceIndex = parseInt(narratorVoice.value) || 0;
-            let characterVolume = parseFloat(narratorVolume.value) || 1.0;
             
-            if (element.isDialogue && element.character && characterVoiceMap[element.character] !== undefined) {
-                voiceIndex = characterVoiceMap[element.character];
-                characterVolume = characterVolumeMap[element.character] || 1.0;
-            }
+            // Add natural pause after scene headings
+            const pauseAfterSpeaking = element.isSceneHeading ? 500 : 0;
+            
+            // Check if text contains parentheses - if so, split and handle separately
+            const parentheticalRegex = /\(([^)]+)\)/g;
+            if (parentheticalRegex.test(fullText)) {
+                // Text has parentheticals - need to split it up
+                const parts = [];
+                let lastIndex = 0;
+                const matches = [...fullText.matchAll(/\(([^)]+)\)/g)];
+                
+                matches.forEach((match) => {
+                    // Add text before parenthetical (if any) with character voice
+                    if (match.index > lastIndex) {
+                        const beforeText = fullText.substring(lastIndex, match.index).trim();
+                        if (beforeText) {
+                            let voiceIndex = parseInt(narratorVoice.value) || 0;
+                            let characterVolume = parseFloat(narratorVolume.value) || 1.0;
+                            if (element.isDialogue && element.character && characterVoiceMap[element.character] !== undefined) {
+                                voiceIndex = characterVoiceMap[element.character];
+                                characterVolume = characterVolumeMap[element.character] || 1.0;
+                            }
+                            parts.push({ text: expandAbbreviations(beforeText), voiceIndex, characterVolume });
+                        }
+                    }
+                    
+                    // Add parenthetical with narrator voice
+                    const parentheticalText = match[1].trim();
+                    if (parentheticalText) {
+                        parts.push({ 
+                            text: expandAbbreviations(parentheticalText), 
+                            voiceIndex: parseInt(narratorVoice.value) || 0,
+                            characterVolume: parseFloat(narratorVolume.value) || 1.0
+                        });
+                    }
+                    
+                    lastIndex = match.index + match[0].length;
+                });
+                
+                // Add any remaining text after last parenthetical
+                if (lastIndex < fullText.length) {
+                    const afterText = fullText.substring(lastIndex).trim();
+                    if (afterText) {
+                        let voiceIndex = parseInt(narratorVoice.value) || 0;
+                        let characterVolume = parseFloat(narratorVolume.value) || 1.0;
+                        if (element.isDialogue && element.character && characterVoiceMap[element.character] !== undefined) {
+                            voiceIndex = characterVoiceMap[element.character];
+                            characterVolume = characterVolumeMap[element.character] || 1.0;
+                        }
+                        parts.push({ text: expandAbbreviations(afterText), voiceIndex, characterVolume });
+                    }
+                }
+                
+                // Speak each part in sequence
+                speakTextParts(parts, 0, pauseAfterSpeaking);
+            } else {
+                // No parentheticals - speak normally
+                let voiceIndex = parseInt(narratorVoice.value) || 0;
+                let characterVolume = parseFloat(narratorVolume.value) || 1.0;
+                
+                if (element.isDialogue && element.character && characterVoiceMap[element.character] !== undefined) {
+                    voiceIndex = characterVoiceMap[element.character];
+                    characterVolume = characterVolumeMap[element.character] || 1.0;
+                }
 
-            speakText(spokenText, voiceIndex, characterVolume);
+                speakText(spokenText, voiceIndex, characterVolume, null, pauseAfterSpeaking);
+            }
+        }
+        
+        function speakTextParts(parts, index, pauseAfterSpeaking) {
+            if (index >= parts.length || !isPlaying || isJumping) {
+                // Apply pause before moving to next line (only after last part)
+                if (pauseAfterSpeaking > 0) {
+                    setTimeout(() => readNext(), pauseAfterSpeaking);
+                } else {
+                    readNext();
+                }
+                return;
+            }
+            
+            const part = parts[index];
+            const isLastPart = index === parts.length - 1;
+            speakText(part.text, part.voiceIndex, part.characterVolume, () => {
+                speakTextParts(parts, index + 1, pauseAfterSpeaking);
+            }, isLastPart ? 0 : 0); // Only pause after the very last part
         }
 
-        async function speakText(text, voiceIndex, characterVolume) {
+        async function speakText(text, voiceIndex, characterVolume, onComplete, pauseAfterSpeaking = 0) {
             if (!text || text.trim() === '') {
-                readNext();
+                if (onComplete) {
+                    onComplete();
+                } else {
+                    if (pauseAfterSpeaking > 0) {
+                        setTimeout(() => readNext(), pauseAfterSpeaking);
+                    } else {
+                        readNext();
+                    }
+                }
                 return;
             }
 
-            // Prevent multiple simultaneous audio loads
-            if (isLoadingAudio) return;
-            isLoadingAudio = true;
+            // CRITICAL: Stop any currently playing audio BEFORE starting new one
+            if (currentAudio) {
+                console.log('STOPPING EXISTING AUDIO before new audio');
+                currentAudio.pause();
+                currentAudio.src = '';
+                currentAudio = null;
+            }
+            
+            // Create a unique session ID for this audio
+            currentAudioSessionId++;
+            const thisSessionId = currentAudioSessionId;
+            console.log(`Starting audio session ${thisSessionId}`);
 
             try {
                 const voice = voices[voiceIndex];
@@ -768,23 +924,45 @@
                 const audioBlob = await response.blob();
                 const audioUrl = URL.createObjectURL(audioBlob);
                 
-                // Check if we're still supposed to be playing
-                if (!isPlaying || isJumping) {
+                // Check if this session is still valid (not superseded by a newer one)
+                if (thisSessionId !== currentAudioSessionId) {
+                    console.log(`Session ${thisSessionId} superseded by ${currentAudioSessionId}, aborting`);
                     URL.revokeObjectURL(audioUrl);
-                    isLoadingAudio = false;
                     return;
                 }
                 
+                // Check if we're still supposed to be playing
+                if (!isPlaying || isJumping) {
+                    console.log(`Session ${thisSessionId} - no longer playing, aborting`);
+                    URL.revokeObjectURL(audioUrl);
+                    return;
+                }
+                
+                // Final check: stop any existing audio right before playing
+                if (currentAudio) {
+                    console.log('EMERGENCY: Stopping audio that somehow still exists');
+                    currentAudio.pause();
+                    currentAudio.src = '';
+                    currentAudio = null;
+                }
+                
                 currentAudio = new Audio(audioUrl);
+                currentAudio.volume = volumeLevel * characterVolume;
 
                 currentAudio.onended = () => {
                     URL.revokeObjectURL(audioUrl);
                     currentAudio = null;
                     if (!isJumping && isPlaying && !isPaused) {
-                        isLoadingAudio = false;
-                        readNext();
-                    } else {
-                        isLoadingAudio = false;
+                        if (onComplete) {
+                            onComplete();
+                        } else {
+                            // Apply pause before moving to next line
+                            if (pauseAfterSpeaking > 0) {
+                                setTimeout(() => readNext(), pauseAfterSpeaking);
+                            } else {
+                                readNext();
+                            }
+                        }
                     }
                 };
 
@@ -792,37 +970,45 @@
                     URL.revokeObjectURL(audioUrl);
                     currentAudio = null;
                     if (!isJumping && isPlaying && !isPaused) {
-                        isLoadingAudio = false;
-                        readNext();
-                    } else {
-                        isLoadingAudio = false;
+                        if (onComplete) {
+                            onComplete();
+                        } else {
+                            // Apply pause before moving to next line
+                            if (pauseAfterSpeaking > 0) {
+                                setTimeout(() => readNext(), pauseAfterSpeaking);
+                            } else {
+                                readNext();
+                            }
+                        }
                     }
                 };
 
                 if (!isPaused && isPlaying) {
-                    currentAudio.play().catch(error => {
-                        console.error('Play failed:', error);
-                        isLoadingAudio = false;
-                        if (!isJumping && isPlaying && !isPaused) {
-                            readNext();
-                        }
-                    });
-                    // Don't wait for play to finish - onended will call readNext
-                } else {
-                    isLoadingAudio = false;
+                    currentAudio.play();
                 }
             } catch (error) {
                 console.error('Error:', error);
                 status.textContent = 'Error generating speech';
-                isLoadingAudio = false;
                 if (isPlaying && !isPaused && !isJumping) {
-                    readNext();
+                    if (onComplete) {
+                        onComplete();
+                    } else {
+                        // Apply pause before moving to next line
+                        if (pauseAfterSpeaking > 0) {
+                            setTimeout(() => readNext(), pauseAfterSpeaking);
+                        } else {
+                            readNext();
+                        }
+                    }
                 }
             }
         }
 
         function stopReading() {
             console.log('STOP READING - NUCLEAR SHUTDOWN');
+            
+            // Invalidate any pending audio sessions
+            currentAudioSessionId++;
             
             // Abort any pending requests
             if (abortController) {
@@ -836,16 +1022,14 @@
                 currentAudio = null;
             }
             audioQueue = [];
-            isLoadingAudio = false;
             isPlaying = false;
             isPaused = false;
             currentIndex = 0;
 
             document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
-            playBtn.disabled = false;
-            pauseBtn.disabled = true;
+            playPauseBtn.disabled = false;
+            playPauseBtn.textContent = '▶️ Play';
             stopBtn.disabled = true;
-            pauseBtn.textContent = '⏸️ Pause';
             status.textContent = 'Stopped';
         }
     </script>
