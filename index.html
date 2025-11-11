@@ -385,20 +385,38 @@
         let abortController = null; // NEW: To cancel pending requests
         let currentAudioSessionId = 0; // NEW: Track which audio session is active
         
-        // Mobile audio fix: Create and unlock AudioContext on first user interaction
-        let audioContext = null;
-        let audioContextUnlocked = false;
+        // Mobile audio fix: Create ONE persistent audio element and reuse it
+        let persistentAudio = null;
+        let consecutivePlaysWithoutInteraction = 0; // Track plays for iOS
+        const MAX_PLAYS_BEFORE_IOS_PAUSE = 3; // iOS typically allows 2-3
+        let audioPreloadCache = {}; // Cache preloaded audio blobs
         
-        function unlockAudioContext() {
+        // Web Audio API setup - more permissive on mobile
+        let audioContext = null;
+        let currentSourceNode = null;
+        
+        function initWebAudio() {
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                console.log('🎵 Web Audio API initialized');
             }
-            if (!audioContextUnlocked && audioContext.state === 'suspended') {
+            // Resume if suspended (mobile requirement)
+            if (audioContext.state === 'suspended') {
                 audioContext.resume().then(() => {
-                    audioContextUnlocked = true;
-                    console.log('🔓 AudioContext unlocked for mobile playback');
+                    console.log('🎵 Web Audio API resumed');
                 });
             }
+            return audioContext;
+        }
+        
+        function initPersistentAudio() {
+            if (!persistentAudio) {
+                persistentAudio = new Audio();
+                persistentAudio.playsInline = true;
+                persistentAudio.preload = 'auto';
+                console.log('🔊 Created persistent audio element for mobile compatibility');
+            }
+            return persistentAudio;
         }
 
         const fileInput = document.getElementById('fileInput');
@@ -705,23 +723,34 @@
         }
 
         playPauseBtn.addEventListener('click', () => {
-            // Unlock audio on mobile
-            unlockAudioContext();
+            // Initialize Web Audio API on first interaction
+            initWebAudio();
+            
+            // Reset iOS play counter on user interaction
+            consecutivePlaysWithoutInteraction = 0;
             
             if (isPaused) {
-                // Resume
+                // Resume - just continue reading from where we paused
                 isPaused = false;
                 playPauseBtn.textContent = '⏸️ Pause';
-                if (currentAudio) currentAudio.play();
-                status.textContent = 'Playing...';
+                status.textContent = 'Resuming...';
+                readNext(); // Continue from current position
             } else if (!isPlaying) {
                 // Start playing
                 startReading();
             } else if (isPlaying) {
-                // Pause
+                // Pause - Web Audio can't really pause, so we stop current and mark paused
                 isPaused = true;
                 playPauseBtn.textContent = '▶️ Resume';
-                if (currentAudio) currentAudio.pause();
+                if (currentSourceNode) {
+                    try {
+                        currentSourceNode.stop();
+                    } catch (e) {
+                        // Already stopped
+                    }
+                    currentSourceNode = null;
+                }
+                isCurrentlyLoadingOrPlaying = false;
                 status.textContent = 'Paused';
             }
         });
@@ -987,25 +1016,56 @@
                 }
                 
                 // Final check: stop any existing audio right before playing
-                if (currentAudio) {
-                    console.log('EMERGENCY: Stopping audio that somehow still exists');
-                    currentAudio.pause();
-                    currentAudio.src = '';
-                    currentAudio = null;
+                if (currentSourceNode) {
+                    console.log('Stopping existing Web Audio source');
+                    try {
+                        currentSourceNode.stop();
+                    } catch (e) {
+                        // Already stopped
+                    }
+                    currentSourceNode = null;
                 }
                 
-                currentAudio = new Audio(audioUrl);
-                currentAudio.volume = volumeLevel * characterVolume;
-                currentAudio.playsInline = true; // Mobile fix: prevent fullscreen (correct property name)
-                currentAudio.preload = 'auto'; // Mobile fix: preload audio
+                // Web Audio API: Decode the audio data
+                const arrayBuffer = await audioBlob.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                
+                // Create source node
+                currentSourceNode = audioContext.createBufferSource();
+                currentSourceNode.buffer = audioBuffer;
+                
+                // Create gain node for volume control
+                const gainNode = audioContext.createGain();
+                gainNode.gain.value = volumeLevel * characterVolume;
+                
+                // Connect: source → gain → destination (speakers)
+                currentSourceNode.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                console.log(`🎵 Web Audio ready to play for session ${thisSessionId}`);
 
-                currentAudio.onended = () => {
-                    console.log(`✅ Audio ENDED event fired for session ${thisSessionId}`);
+                console.log(`🎵 Web Audio ready to play for session ${thisSessionId}`);
+                
+                // Set up onended callback
+                currentSourceNode.onended = () => {
+                    console.log(`✅ Web Audio ENDED for session ${thisSessionId}`);
                     status.textContent = `✅ Line ${currentIndex} ended - moving to next`;
                     URL.revokeObjectURL(audioUrl);
-                    currentAudio = null;
+                    currentSourceNode = null;
                     isCurrentlyLoadingOrPlaying = false;
                     console.log('FLAG SET TO FALSE - Audio ended, ready for next line');
+                    
+                    // iOS check: pause every few lines to maintain autoplay budget
+                    consecutivePlaysWithoutInteraction++;
+                    if (consecutivePlaysWithoutInteraction >= MAX_PLAYS_BEFORE_IOS_PAUSE) {
+                        console.log('🍎 iOS autoplay limit approaching - pausing for user interaction');
+                        isPaused = true;
+                        playPauseBtn.textContent = '▶️ Tap to Continue';
+                        playPauseBtn.disabled = false;
+                        status.textContent = '👆 Tap Play to continue (iOS audio limit)';
+                        return; // Don't continue automatically
+                    }
+                    
                     if (!isJumping && isPlaying && !isPaused) {
                         if (onComplete) {
                             onComplete();
@@ -1021,94 +1081,26 @@
                         console.log(`Not continuing: isJumping=${isJumping}, isPlaying=${isPlaying}, isPaused=${isPaused}`);
                     }
                 };
-                
-                // MOBILE SAFARI FIX: Set a safety timeout in case onended never fires
-                // Estimate duration (most TTS lines are under 10 seconds, give 15 sec buffer)
-                const safetyTimeoutMs = 15000;
-                const audioSafetyTimeout = setTimeout(() => {
-                    if (isCurrentlyLoadingOrPlaying && currentAudio && thisSessionId === currentAudioSessionId) {
-                        console.warn(`🚨 SAFETY TIMEOUT: onended didn't fire after ${safetyTimeoutMs}ms, forcing continuation`);
-                        status.textContent = `⚠️ Audio timeout - forcing next line`;
-                        
-                        // Manually trigger the end sequence
-                        if (currentAudio) {
-                            URL.revokeObjectURL(audioUrl);
-                            currentAudio.pause();
-                            currentAudio = null;
-                        }
-                        isCurrentlyLoadingOrPlaying = false;
-                        
-                        if (!isJumping && isPlaying && !isPaused) {
-                            if (onComplete) {
-                                onComplete();
-                            } else {
-                                if (pauseAfterSpeaking > 0) {
-                                    setTimeout(() => readNext(), pauseAfterSpeaking);
-                                } else {
-                                    readNext();
-                                }
-                            }
-                        }
-                    }
-                }, safetyTimeoutMs);
-                
-                // Clear safety timeout if onended fires normally
-                const originalOnended = currentAudio.onended;
-                currentAudio.onended = () => {
-                    clearTimeout(audioSafetyTimeout);
-                    originalOnended();
-                };
-
-                currentAudio.onerror = (e) => {
-                    console.error(`Audio error for session ${thisSessionId}:`, e);
-                    URL.revokeObjectURL(audioUrl);
-                    currentAudio = null;
-                    isCurrentlyLoadingOrPlaying = false; // Allow next line to load
-                    if (!isJumping && isPlaying && !isPaused) {
-                        if (onComplete) {
-                            onComplete();
-                        } else {
-                            // Apply pause before moving to next line
-                            if (pauseAfterSpeaking > 0) {
-                                setTimeout(() => readNext(), pauseAfterSpeaking);
-                            } else {
-                                readNext();
-                            }
-                        }
-                    }
-                };
 
                 if (!isPaused && isPlaying) {
-                    console.log(`Attempting to play audio for session ${thisSessionId}`);
+                    console.log(`Attempting to play Web Audio for session ${thisSessionId}`);
                     
-                    // Mobile fix: Resume AudioContext before playing to maintain permissions
-                    if (audioContext && audioContext.state === 'suspended') {
-                        audioContext.resume();
-                    }
-                    
-                    // Mobile browsers require proper promise handling for audio.play()
-                    const playPromise = currentAudio.play();
-                    if (playPromise !== undefined) {
-                        playPromise.then(() => {
-                            console.log(`Audio started playing successfully for session ${thisSessionId}`);
-                        }).catch(error => {
-                            console.error('❌ Play failed:', error);
-                            status.textContent = '❌ Playback blocked - tap Play/Pause to resume';
-                            isCurrentlyLoadingOrPlaying = false; // Allow retry
-                            
-                            // MOBILE FIX: Don't continue racing through if play is blocked
-                            // Just stop and wait for user interaction
-                            isPlaying = false;
-                            isPaused = true;
-                            playPauseBtn.textContent = '▶️ Resume';
-                            playPauseBtn.disabled = false;
-                            
-                            console.log('Playback stopped due to browser autoplay policy. User must click Play to continue.');
-                        });
+                    // Web Audio API: Just call start()
+                    try {
+                        currentSourceNode.start(0);
+                        console.log(`🎵 Web Audio started playing for session ${thisSessionId}`);
+                    } catch (error) {
+                        console.error('❌ Web Audio play failed:', error);
+                        status.textContent = '❌ Playback error - tap Play again';
+                        isCurrentlyLoadingOrPlaying = false;
+                        isPlaying = false;
+                        isPaused = true;
+                        playPauseBtn.textContent = '▶️ Resume';
+                        playPauseBtn.disabled = false;
                     }
                 } else {
                     console.log(`Not playing: isPaused=${isPaused}, isPlaying=${isPlaying}`);
-                    isCurrentlyLoadingOrPlaying = false; // Reset flag if not playing
+                    isCurrentlyLoadingOrPlaying = false;
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -1141,10 +1133,14 @@
                 abortController = null;
             }
             
-            if (currentAudio) {
-                currentAudio.pause();
-                currentAudio.src = '';
-                currentAudio = null;
+            // Stop Web Audio
+            if (currentSourceNode) {
+                try {
+                    currentSourceNode.stop();
+                } catch (e) {
+                    // Already stopped
+                }
+                currentSourceNode = null;
             }
             audioQueue = [];
             isCurrentlyLoadingOrPlaying = false; // Reset loading flag
