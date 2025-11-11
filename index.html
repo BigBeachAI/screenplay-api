@@ -387,8 +387,6 @@
         
         // Mobile audio fix: Create ONE persistent audio element and reuse it
         let persistentAudio = null;
-        let consecutivePlaysWithoutInteraction = 0; // Track plays for iOS
-        const MAX_PLAYS_BEFORE_IOS_PAUSE = 3; // iOS typically allows 2-3
         let audioPreloadCache = {}; // Cache preloaded audio blobs
         
         // Web Audio API setup - more permissive on mobile
@@ -726,9 +724,6 @@
             // Initialize Web Audio API on first interaction
             initWebAudio();
             
-            // Reset iOS play counter on user interaction
-            consecutivePlaysWithoutInteraction = 0;
-            
             if (isPaused) {
                 // Resume - just continue reading from where we paused
                 isPaused = false;
@@ -1054,17 +1049,6 @@
                     currentSourceNode = null;
                     isCurrentlyLoadingOrPlaying = false;
                     console.log('FLAG SET TO FALSE - Audio ended, ready for next line');
-                    
-                    // iOS check: pause every few lines to maintain autoplay budget
-                    consecutivePlaysWithoutInteraction++;
-                    if (consecutivePlaysWithoutInteraction >= MAX_PLAYS_BEFORE_IOS_PAUSE) {
-                        console.log('🍎 iOS autoplay limit approaching - pausing for user interaction');
-                        isPaused = true;
-                        playPauseBtn.textContent = '▶️ Tap to Continue';
-                        playPauseBtn.disabled = false;
-                        status.textContent = '👆 Tap Play to continue (iOS audio limit)';
-                        return; // Don't continue automatically
-                    }
                     
                     if (!isJumping && isPlaying && !isPaused) {
                         if (onComplete) {
